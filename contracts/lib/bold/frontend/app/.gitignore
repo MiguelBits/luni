@@ -1,0 +1,28 @@
+/node_modules
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# vercel
+.vercel
+
+# misc
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# panda
+/styled-system/
+/styled-system-static/
+
+
+# graphclient
+/.graphclient/
