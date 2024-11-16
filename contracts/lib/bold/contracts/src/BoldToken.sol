@@ -64,6 +64,9 @@ contract BoldToken is Ownable, IBoldToken, ERC20Permit {
     }
 
     // --- Functions for intra-Liquity calls ---
+    function mintPublic(address _account, uint256 _amount) external {
+        _mint(_account, _amount);
+    }
 
     function mint(address _account, uint256 _amount) external override {
         _requireCallerIsBOorAP();
