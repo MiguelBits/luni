@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 
@@ -7,6 +7,7 @@ import "forge-std/Test.sol";
 import {BorrowerOperations} from "liquity-bold/src/BorrowerOperations.sol";
 import {ERC20} from "liquity-bold/lib/Solady/src/tokens/ERC20.sol";
 //UNIV4
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {Actions} from "v4-periphery/src/libraries/Actions.sol";
@@ -14,6 +15,9 @@ import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {SortTokens, MockERC20} from "v4-core/test/utils/SortTokens.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {PositionManager} from "v4-periphery/src/PositionManager.sol";
 //HOOK
 import {Hook} from "../src/Hook.sol";
 
@@ -30,11 +34,15 @@ contract HookTest is Test {
     address public constant BORROWER_OPERATIONS = 0x8fF7d450FA8Af49e386d162D80295606ef881a16;
 
     //UNIV4////////////////////////////////////////////////////////////////////////////////////
-    IPoolManager public poolManager = IPoolManager(0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A);
+    
+    /// @dev populated with default sepolia addresses from: https://docs.uniswap.org/contracts/v4/deployments
+    IPoolManager constant POOLMANAGER = IPoolManager(address(0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A));
+    PositionManager constant posm = PositionManager(payable(address(0x1B1C77B606d13b09C84d1c7394B96b147bC03147)));
+    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
     using CurrencyLibrary for Currency;
     Currency public currency0;
     Currency public currency1;
-
+    PoolKey pool;
     /////////////////////////////////////
     // --- Parameters to Configure --- //
     /////////////////////////////////////
@@ -48,8 +56,8 @@ contract HookTest is Test {
     uint160 startingPrice = 79228162514264337593543950336; // floor(sqrt(1) * 2^96)
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 1e18;
-    uint256 public token1Amount = 1e18;
+    uint256 public token0Amount = 10e18;
+    uint256 public token1Amount = 50000e18;
 
     // range of the position
     int24 tickLower = -600; // must be a multiple of tickSpacing
@@ -58,11 +66,38 @@ contract HookTest is Test {
 
 
     //HOOK/////////////////////////////////////////////////////////////////////////////////////
-    Hook public hook;
+    Hook public hookContract;
 
     function setUp() public {
         vm.createSelectFork("https://eth-sepolia.g.alchemy.com/v2/_oXBG8AigQRseN1k3i4srkLBxFeP6EJN");
-        
+
+        currency0 = Currency.wrap(WETH);
+        currency1 = Currency.wrap(BOLD);
+        (currency0, currency1) = SortTokens.sort(MockERC20(WETH), MockERC20(BOLD));
+
+        // Deploy the hook to an address with the correct flags
+        address flags = address(
+            uint160(
+                Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
+        );
+        bytes memory constructorArgs = abi.encode(POOLMANAGER); //Add all the necessary constructor arguments from the hook
+        deployCodeTo("Hook.sol:Hook", constructorArgs, flags);
+
+        hookContract = Hook(flags);
+        pool = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: lpFee,
+            tickSpacing: tickSpacing,
+            hooks: hookContract
+        }); 
+        console2.log("pool hook address: %s", address(hookContract));
+        //add pool
+    }
+
+    function test_openTrove() public {
+
         console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
 
         deal(WETH, USER, AMOUNT_COLLATERAL*2);
@@ -70,24 +105,6 @@ contract HookTest is Test {
         console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
 
         //deal(BOLD, USER, 10 ether);
-
-        currency0 = Currency.wrap(WETH);
-        currency1 = Currency.wrap(BOLD);
-        //TODO: (currency0, currency1) = SortTokens.sort(ERC20(WETH), ERC20(BOLD));
-
-        //TODO: hook = new Hook(poolManager);
-
-        /*
-        PoolKey memory pool = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: lpFee,
-            tickSpacing: tickSpacing,
-            hooks: hookContract
-        });*/
-    }
-
-    function test_openTrove() public {
         /*
             0	_owner	address	0x3b1b0C2Bf68D0e2304960E1F32c607771B8CFE01
             1	_ownerIndex	uint256	0
@@ -146,20 +163,20 @@ contract HookTest is Test {
     }
 
     function tokenApprovals() public {
+        ERC20 token0 = ERC20(WETH);
+        ERC20 token1 = ERC20(BOLD);
         if (!currency0.isAddressZero()) {
-            //TODO: token0.approve(address(PERMIT2), type(uint256).max);
-            //TODO: PERMIT2.approve(address(token0), address(posm), type(uint160).max, type(uint48).max);
+            token0.approve(address(PERMIT2), type(uint256).max);
+            PERMIT2.approve(address(token0), address(posm), type(uint160).max, type(uint48).max);
         }
         if (!currency1.isAddressZero()) {
-            //TODO: token1.approve(address(PERMIT2), type(uint256).max);
-            //TODO: PERMIT2.approve(address(token1), address(posm), type(uint160).max, type(uint48).max);
+            token1.approve(address(PERMIT2), type(uint256).max);
+            PERMIT2.approve(address(token1), address(posm), type(uint160).max, type(uint48).max);
         }
     }
 
     function test_addLiquidity() public {
         bytes memory hookData = new bytes(0);
-
-        // --------------------------------- //
 
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
@@ -173,20 +190,31 @@ contract HookTest is Test {
         // slippage limits
         uint256 amount0Max = token0Amount + 1 wei;
         uint256 amount1Max = token1Amount + 1 wei;
-        /* TODO:
+        
+        console2.log("liquidity: %s", liquidity);
+                console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+
+        deal(WETH, USER, token0Amount);
+
+        console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+
+        deal(BOLD, USER, token1Amount);
+
+        console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+
         (bytes memory actions, bytes[] memory mintParams) =
             _mintLiquidityParams(pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
-        */
+        
         // multicall parameters
         bytes[] memory params = new bytes[](2);
 
         // initialize pool
-        //TODO: params[0] = abi.encodeWithSelector(posm.initializePool.selector, pool, startingPrice, hookData);
+        params[0] = abi.encodeWithSelector(posm.initializePool.selector, pool, startingPrice, hookData);
 
-        /*//TODO: mint liquidity
+        //mint liquidity
         params[1] = abi.encodeWithSelector(
             posm.modifyLiquidities.selector, abi.encode(actions, mintParams), block.timestamp + 60
-        );*/
+        );
 
         // if the pool is an ETH pair, native tokens are to be transferred
         uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
@@ -197,7 +225,7 @@ contract HookTest is Test {
         tokenApprovals();
 
         // multicall to atomically create pool & add liquidity
-        //TODO : posm.multicall{value: valueToPass}(params);
+        posm.multicall{value: valueToPass}(params);
 
         vm.stopPrank();
 
