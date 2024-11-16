@@ -1,0 +1,9 @@
+[submodule "contracts/lib/v4-template"]
+	path = contracts/lib/v4-template
+	url = https://github.com/uniswapfoundation/v4-template
+[submodule "contracts/lib/permit2"]
+	path = contracts/lib/permit2
+	url = https://github.com/Uniswap/permit2
+[submodule "contracts/lib/openzeppelin-contracts"]
+	path = contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
