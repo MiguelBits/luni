@@ -25,8 +25,28 @@ const Home: NextPage = () => {
   return (
     <>
       <div>
-        <div className="hero bg-base-200 min-h-screen">
+        <div className="hero min-h-screen bg-base-100">
           <div className="hero-content flex-col justify-center items-center">
+            <div className="stats shadow mb-8 bg-base-100">
+              <div className="stat place-items-center">
+                <div className="stat-title">Liquidation</div>
+                <div className="stat-value">31K</div>
+                <div className="stat-desc">From January 1st to February 1st</div>
+              </div>
+
+              <div className="stat place-items-center">
+                <div className="stat-title">Users</div>
+                <div className="stat-value text-secondary">4,200</div>
+                <div className="stat-desc text-secondary">↗︎ 40 (2%)</div>
+              </div>
+
+              <div className="stat place-items-center">
+                <div className="stat-title">New Registers</div>
+                <div className="stat-value">1,200</div>
+                <div className="stat-desc">↘︎ 90 (14%)</div>
+              </div>
+            </div>
+
             <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
               <form className="card-body">
                 <div className="form-control">
@@ -57,7 +77,7 @@ const Home: NextPage = () => {
                       <div
                         tabIndex={0}
                         role="button"
-                        className="btn m-1"
+                        className="btn m-1 bg-pink-400 hover:bg-pink-500 border-pink-400 text-white"
                         onClick={() => setIsDropdownInOpen(!isDropdownInOpen)}
                       >
                         {selectedTokenIn}
@@ -125,7 +145,7 @@ const Home: NextPage = () => {
                       <div
                         tabIndex={0}
                         role="button"
-                        className="btn m-1"
+                        className="btn m-1 bg-pink-400 hover:bg-pink-500 border-pink-400 text-white"
                         onClick={() => setIsDropdownOutOpen(!isDropdownOutOpen)}
                       >
                         {selectedTokenOut}
@@ -172,8 +192,12 @@ const Home: NextPage = () => {
                     max="100" 
                     value={sliderValue} 
                     onChange={(e) => setSliderValue(Number(e.target.value))} 
-                    className="range" 
+                    className="range range-primary" 
                     step="25" 
+                    style={{
+                      '--range-shdw': '#c084fc',  // Purple-400
+                      accentColor: '#c084fc'      // Purple-400
+                    }}
                   />
                   <div className="flex w-full justify-between px-2 text-xs">
                     <span>x2</span>
@@ -184,7 +208,7 @@ const Home: NextPage = () => {
                   </div>
                 </div>
                 <div className="form-control mt-6">
-                  <button className="btn btn-primary">Let's Luni Swap!</button>
+                  <button className="btn bg-pink-400 hover:bg-pink-500 border-pink-400 text-white">Let's Luni Swap!</button>
                 </div>
               </form>
             </div>
