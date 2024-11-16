@@ -28,7 +28,7 @@ contract HookTest is Test {
     address public constant BOLD = 0x3EF4A137b3470f0B8fFe6391eDb72d78a3Ac1E63;
     address public constant WETH = 0xbCDdC15adbe087A75526C0b7273Fcdd27bE9dD18;
     
-    address public constant USER = address(1);
+    address public constant USER = 0x5C89102bcBf5Fa85f9aec152b0a3Ef89634DEcB5;
     uint256 public constant AMOUNT_COLLATERAL = 1000000000000000000000000;
     uint256 public constant AMOUNT_BOLD = 1000000000000000000000000000;
 
@@ -72,7 +72,9 @@ contract HookTest is Test {
     Hook public hookContract;
 
     function setUp() public {
-        vm.createSelectFork("https://eth-sepolia.g.alchemy.com/v2/_oXBG8AigQRseN1k3i4srkLBxFeP6EJN");
+        //vm.createSelectFork("https://eth-sepolia.g.alchemy.com/v2/_oXBG8AigQRseN1k3i4srkLBxFeP6EJN");
+
+        vm.deal(USER, 1000 ether);
 
         currency0 = Currency.wrap(WETH);
         currency1 = Currency.wrap(BOLD);
@@ -84,7 +86,8 @@ contract HookTest is Test {
                 Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
             ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
         );
-        bytes memory constructorArgs = abi.encode(POOLMANAGER); //Add all the necessary constructor arguments from the hook
+        //TODO: VERY IMPORTANT TO CHANGE
+        bytes memory constructorArgs = abi.encode(POOLMANAGER, BorrowerOperations(BORROWER_OPERATIONS)); //Add all the necessary constructor arguments from the hook
         deployCodeTo("Hook.sol:Hook", constructorArgs, flags);
 
         hookContract = Hook(flags);
@@ -234,12 +237,12 @@ contract HookTest is Test {
 
     }
 
-    function _swap(int256 amountSpecified) public {
+    function _swap(int256 amountSpecified, uint256 borrowSpecificAmount) public {
 
         // slippage tolerance to allow for unlimited price impact
         uint160 MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
         uint160 MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
-        bool zeroForOne = true;
+        bool zeroForOne = true; //swap token1 for token0
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: amountSpecified,
@@ -251,12 +254,12 @@ contract HookTest is Test {
         PoolSwapTest.TestSettings memory testSettings =
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
 
-        deal(WETH, USER, uint256(amountSpecified)*2);
-        deal(BOLD, USER, uint256(amountSpecified)*2);
+        deal(WETH, USER, uint256(amountSpecified)*3);
+        deal(BOLD, USER, uint256(amountSpecified)*3);
         console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
 
-        bytes memory hookData = new bytes(0);
+        bytes memory hookData = abi.encode(borrowSpecificAmount, USER);
 
         ERC20 token0 = ERC20(WETH);
         ERC20 token1 = ERC20(BOLD);
@@ -266,6 +269,9 @@ contract HookTest is Test {
         //approve
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);
+
+        token0.approve(address(hookContract), type(uint256).max);
+        token1.approve(address(hookContract), type(uint256).max);
 
         swapRouter.swap(pool, params, testSettings, hookData);
         vm.stopPrank();
@@ -280,8 +286,15 @@ contract HookTest is Test {
         test_openTrove();
         
         //swap
-        _swap(1e18);
+        _swap(1e18, 0);
 
+    }
+
+    function test_swapHook() public {
+        //add liquidity
+        test_addLiquidity();
+        //swap
+        _swap(10e18, 2000e18);
     }
 
 }
