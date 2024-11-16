@@ -2,19 +2,37 @@
 pragma solidity 0.8.24;
 
 import {Script} from "forge-std/Script.sol";
+//BOLD
+import {BorrowerOperations} from "liquity-bold/src/BorrowerOperations.sol";
+import {ERC20} from "liquity-bold/lib/Solady/src/tokens/ERC20.sol";
+//UNIV4
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
+import {Actions} from "v4-periphery/src/libraries/Actions.sol";
+import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {IERC20} from "forge-std/interfaces/IERC20.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {SortTokens, MockERC20} from "v4-core/test/utils/SortTokens.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {PositionManager} from "v4-periphery/src/PositionManager.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+//HOOK
 import {Hook} from "../src/Hook.sol";
+import {HookMiner} from "v4-template/test/utils/HookMiner.sol";
 
 contract Deploy is Script {
 
     //BOLD///////////////////////////////////////////////////////////////////////////////////////
-    address public constant BOLD = 0x66bb78c022a0c759ed5a679cfc840f0269f17b8f;
-    address public constant WETH = 0xed7cacc195890754b28932261ea3235b1dca8d15;
+    address public constant BOLD = 0x66bB78C022A0c759Ed5a679cfC840F0269f17B8f;
+    address public constant WETH = 0xED7CAcC195890754B28932261Ea3235B1dCa8D15;
     
     address public constant USER = 0x5C89102bcBf5Fa85f9aec152b0a3Ef89634DEcB5;
     uint256 public constant AMOUNT_COLLATERAL = 1000000000000000000000000;
     uint256 public constant AMOUNT_BOLD = 1000000000000000000000000000;
 
-    address public constant BORROWER_OPERATIONS = 0xf2baef98ff6b2ba5f75b22c85a56d0add238c347;
+    address public constant BORROWER_OPERATIONS = 0xf2baef98FF6b2bA5F75B22C85a56D0aDd238c347;
 
     //UNIV4////////////////////////////////////////////////////////////////////////////////////
     
@@ -49,30 +67,30 @@ contract Deploy is Script {
     int24 tickUpper = 600;
     /////////////////////////////////////
 
-
     //HOOK/////////////////////////////////////////////////////////////////////////////////////
-    Hook public hookContract;
+    address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
-    function run() public {
+    function run() public returns(Hook hookContract) {
         
         currency0 = Currency.wrap(WETH);
         currency1 = Currency.wrap(BOLD);
         (currency0, currency1) = SortTokens.sort(MockERC20(WETH), MockERC20(BOLD));
 
-        // Deploy the hook to an address with the correct flags
-        address flags = address(
-            uint160(
-                Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-            ) ^ (0x4444 << 144) // Namespace the hook to avoid collisions
+        // hook contracts must have specific flags encoded in the address
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
         );
         //TODO: VERY IMPORTANT TO CHANGE
         bytes memory constructorArgs = abi.encode(POOLMANAGER, BorrowerOperations(BORROWER_OPERATIONS)); //Add all the necessary constructor arguments from the hook
-        
-        vm.startBroadcast();
-        deployCodeTo("Hook.sol:Hook", constructorArgs, flags);
-        vm.stopBroadcast();
+        (address hookAddress, bytes32 salt) =
+            HookMiner.find(CREATE2_DEPLOYER, flags, type(Hook).creationCode, constructorArgs);
 
-        hookContract = Hook(flags);
+        // Deploy the hook using CREATE2
+        vm.broadcast();
+        hookContract = new Hook{salt: salt}(IPoolManager(POOLMANAGER), BorrowerOperations(BORROWER_OPERATIONS));
+        
+        require(address(hookContract) == hookAddress, "CounterScript: hook address mismatch");
+
         pool = PoolKey({
             currency0: currency0,
             currency1: currency1,

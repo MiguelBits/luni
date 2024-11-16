@@ -7,3 +7,4 @@ v4-core/=lib/v4-core/
 v4-periphery/=lib/v4-periphery/
 liquity-bold/=lib/bold/contracts/
 permit2/=lib/permit2/
+v4-template/=lib/v4-template/
