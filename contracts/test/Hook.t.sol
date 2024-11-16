@@ -18,6 +18,7 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {SortTokens, MockERC20} from "v4-core/test/utils/SortTokens.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 //HOOK
 import {Hook} from "../src/Hook.sol";
 
@@ -39,6 +40,8 @@ contract HookTest is Test {
     IPoolManager constant POOLMANAGER = IPoolManager(address(0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A));
     PositionManager constant posm = PositionManager(payable(address(0x1B1C77B606d13b09C84d1c7394B96b147bC03147)));
     IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
+    // PoolSwapTest Contract address, default to the anvil address
+    PoolSwapTest swapRouter = PoolSwapTest(0xe49d2815C231826caB58017e214Bed19fE1c2dD4);
     using CurrencyLibrary for Currency;
     Currency public currency0;
     Currency public currency1;
@@ -231,12 +234,53 @@ contract HookTest is Test {
 
     }
 
+    function _swap(int256 amountSpecified) public {
+
+        // slippage tolerance to allow for unlimited price impact
+        uint160 MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
+        uint160 MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
+        bool zeroForOne = true;
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+            zeroForOne: zeroForOne,
+            amountSpecified: amountSpecified,
+            sqrtPriceLimitX96: zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT // unlimited impact
+        });
+
+        // in v4, users have the option to receieve native ERC20s or wrapped ERC1155 tokens
+        // here, we'll take the ERC20s
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+
+        deal(WETH, USER, uint256(amountSpecified)*2);
+        deal(BOLD, USER, uint256(amountSpecified)*2);
+        console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+        console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+
+        bytes memory hookData = new bytes(0);
+
+        ERC20 token0 = ERC20(WETH);
+        ERC20 token1 = ERC20(BOLD);
+
+        vm.startPrank(USER);
+
+        //approve
+        token0.approve(address(swapRouter), type(uint256).max);
+        token1.approve(address(swapRouter), type(uint256).max);
+
+        swapRouter.swap(pool, params, testSettings, hookData);
+        vm.stopPrank();
+
+    }
+
     function test_openTrove_and_swap() public {
     
-        //TODO: add liquidity
-        //TODO: open trove
-        //TODO: swap
-        //TODO: open trove
+        //add liquidity
+        test_addLiquidity();
+        //open trove
+        test_openTrove();
+        
+        //swap
+        _swap(1e18);
 
     }
 
