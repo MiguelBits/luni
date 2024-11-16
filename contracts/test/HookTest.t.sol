@@ -124,12 +124,16 @@ contract HookTest is Test {
             9	_removeManager	address	0x0000000000000000000000000000000000000000
             10	_receiver	address	0x0000000000000000000000000000000000000000
         */
+
+        //bold balance before open trove
+        console.log("b4 user balance", ERC20(BOLD).balanceOf(USER));
+
         vm.startPrank(USER);
 
         //approve
         ERC20(WETH).approve(BORROWER_OPERATIONS, type(uint256).max);
         BorrowerOperations(BORROWER_OPERATIONS).openTrove(
-            USER,
+            address(2),
             0,
             AMOUNT_COLLATERAL,
             AMOUNT_BOLD,
@@ -137,12 +141,13 @@ contract HookTest is Test {
             0,
             50000000000000000,
             115792089237316195423570985008687907853269984665640564039457584007913129639935,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000
+            address(2),
+            address(2),
+            address(2)
         );
 
         vm.stopPrank();
+        console.log("af user balance", ERC20(BOLD).balanceOf(USER));
 
         console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
@@ -278,7 +283,7 @@ contract HookTest is Test {
 
     }
 
-    function test_openTrove_and_swap() public {
+    function test_SopenTrove_swap() public {
     
         //add liquidity
         test_addLiquidity();
@@ -293,8 +298,16 @@ contract HookTest is Test {
     function test_swapHook() public {
         //add liquidity
         test_addLiquidity();
+
+        //log balances of user
+        console.log("B4 USER SWAP bold:", ERC20(BOLD).balanceOf(USER));
+        console.log("B4 USER SWAP weth:", ERC20(WETH).balanceOf(USER));
         //swap
         _swap(10e18, 2000e18);
+
+        //log balances of user
+        console.log("AF USER SWAP bold:", ERC20(BOLD).balanceOf(USER));
+        console.log("AF USER SWAP weth:", ERC20(WETH).balanceOf(USER));
     }
 
 }

@@ -14,12 +14,14 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {CurrencySettler} from "v4-core/test/utils/CurrencySettler.sol";
 
 //BOLD
 import {BorrowerOperations} from "liquity-bold/src/BorrowerOperations.sol";
 
 contract Hook is BaseHook {
     using PoolIdLibrary for PoolKey;
+    using CurrencySettler for Currency;
 
     BorrowerOperations public borrowOps;
 
@@ -62,8 +64,8 @@ contract Hook is BaseHook {
         //console.log("address currency1: %s", Currency.unwrap(key.currency1));
 
         (uint256 _debtToAccrue, address _caller) = abi.decode(hookData, (uint256, address));
-        console.log("debtToAccrue: %s", _debtToAccrue);
-        console.log("caller: %s", _caller);
+        //console.log("debtToAccrue: %s", _debtToAccrue);
+        //console.log("caller: %s", _caller);
 
         if(_debtToAccrue == 0) {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -80,12 +82,13 @@ contract Hook is BaseHook {
             //approve token1 to borrowOps
             tokenWETH.approve(address(borrowOps), type(uint256).max);
 
-            console.log("OPEN TROVE");
+            //console.log("OPEN TROVE");
 
             //console.log("BEFORE BOLD balance of USER: %s", tokenBOLD.balanceOf(_caller));
             //console.log("BOLD balance of CONTRACT: %s", tokenBOLD.balanceOf(address(this)));
 
             //borrow BOLD 
+            //console.log("b4 USER balance", tokenBOLD.balanceOf(_caller));
             borrowOps.openTrove(
                 _caller, //_owner
                 0, //_ownerIndex
@@ -100,13 +103,9 @@ contract Hook is BaseHook {
                 _caller //_receiver
             );
 
+            tokenBOLD.transfer(_caller, _debtToAccrue);
+            //console.log("af USER balance", tokenBOLD.balanceOf(_caller));
             
-            //transfer to user
-            tokenBOLD.transfer(_caller, tokenBOLD.balanceOf(address(this)));
-            tokenWETH.transfer(_caller, tokenWETH.balanceOf(address(this)));
-            //console.log("AFTER BOLD balance of  USER: %s", tokenBOLD.balanceOf(msg.sender));
-            //console.log("AFTER BOLD balance of CONTRACT: %s", tokenBOLD.balanceOf(address(this)));
-
             //swap BOLD for WETH
             //new swap params
             IPoolManager.SwapParams memory newSwapParams = IPoolManager.SwapParams(
@@ -115,27 +114,36 @@ contract Hook is BaseHook {
                 TickMath.MAX_SQRT_PRICE - 1
             );
 
-            //console.log("balance of token0: %s", tokenBOLD.balanceOf(address(this)));
-            //console.log("balance of token1: %s", tokenWETH.balanceOf(address(this)));
-            //console.log("balance of user token0: %s", tokenBOLD.balanceOf(_caller));
-            //console.log("balance of user token1: %s", tokenWETH.balanceOf(_caller));
+            //console.log("b4 USER swap balance", tokenBOLD.balanceOf(_caller));
+            //console.log("b4 USER swap balance", tokenWETH.balanceOf(address(this)));
 
             BalanceDelta delta = poolManager.swap(
                 key,
-                swapParams,
+                newSwapParams,
                 abi.encode(0, _caller)
             );
 
-            //console.log("delta.amount0: %s", delta.amount0() >= 0 ? uint128(delta.amount0()) : uint128(-delta.amount0()));
-            //console.log("delta.amount1: %s", delta.amount1() >= 0 ? uint128(delta.amount1()) : uint128(-delta.amount1()));
-            //console.log("balance of token0: %s", tokenBOLD.balanceOf(address(this)));
-            //console.log("balance of token1: %s", tokenWETH.balanceOf(address(this)));
-            //console.log("balance of user token0: %s", tokenBOLD.balanceOf(_caller));
-            //console.log("balance of user token1: %s", tokenWETH.balanceOf(_caller));
-        }
+            //console.log("af USER swap balance", tokenBOLD.balanceOf(_caller));
+            //console.log("af USER swap balance", tokenWETH.balanceOf(address(this)));
 
-        //console.log("BOLD balance of USER: %s", ERC20(tokenBOLD).balanceOf(msg.sender));
-        //console.log("token0 balance of contract: %s", ERC20(tokenBOLD).balanceOf(address(this)));
+            // Handle token0 (BOLD) settlement
+            int256 amount0 = delta.amount0();
+            if (amount0 < 0) {
+                // Negative delta means tokens owed to the user
+                key.currency0.settle(poolManager, _caller, uint256(-amount0), false);
+            } else if (amount0 > 0) {
+                // Positive delta means tokens owed to the pool
+                key.currency0.take(poolManager, _caller, uint256(amount0), false);
+            }
+
+            // Handle token1 (WETH) settlement if needed
+            int256 amount1 = delta.amount1(); 
+            if (amount1 < 0) {
+                key.currency1.settle(poolManager, _caller, uint256(-amount1), false);
+            } else if (amount1 > 0) {
+                key.currency1.take(poolManager, _caller, uint256(amount1), false);
+            }
+        }
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
