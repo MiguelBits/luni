@@ -22,27 +22,27 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Hook} from "../src/Hook.sol";
 import {HookMiner} from "v4-template/test/utils/HookMiner.sol";
 
-contract DeployScript is Script {
+contract DeploySepoliaScript is Script {
 
     //BOLD///////////////////////////////////////////////////////////////////////////////////////
-    address public constant BOLD = 0x66bB78C022A0c759Ed5a679cfC840F0269f17B8f;
-    address public constant WETH = 0xED7CAcC195890754B28932261Ea3235B1dCa8D15;
+    address public constant BOLD = 0x3EF4A137b3470f0B8fFe6391eDb72d78a3Ac1E63;
+    address public constant WETH = 0xbCDdC15adbe087A75526C0b7273Fcdd27bE9dD18;
     
     address public constant USER = 0x5C89102bcBf5Fa85f9aec152b0a3Ef89634DEcB5;
     uint256 public constant AMOUNT_COLLATERAL = 1000000000000000000000000;
     uint256 public constant AMOUNT_BOLD = 1000000000000000000000000000;
 
-    address public constant BORROWER_OPERATIONS = 0xf2baef98FF6b2bA5F75B22C85a56D0aDd238c347;
+    address public constant BORROWER_OPERATIONS = 0x8fF7d450FA8Af49e386d162D80295606ef881a16;
 
     //UNIV4////////////////////////////////////////////////////////////////////////////////////
     
     /// @dev populated with default sepolia addresses from: https://docs.uniswap.org/contracts/v4/deployments
-    IPoolManager constant POOLMANAGER = IPoolManager(address(0xC81462Fec8B23319F288047f8A03A57682a35C1A));
-    PositionManager constant posm = PositionManager(payable(address(0xB433cB9BcDF4CfCC5cAB7D34f90d1a7deEfD27b9)));
-    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x38c21A3Ee095d7cB72aF297C6EaA5263df71217B));
-
+    IPoolManager constant POOLMANAGER = IPoolManager(address(0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A));
+    PositionManager constant posm = PositionManager(payable(address(0x1B1C77B606d13b09C84d1c7394B96b147bC03147)));
+    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
     // PoolSwapTest Contract address, default to the anvil address
-    PoolSwapTest swapRouter = PoolSwapTest(0xe437355299114d35Ffcbc0c39e163B24A8E9cBf1);
+    PoolSwapTest swapRouter = PoolSwapTest(0xe49d2815C231826caB58017e214Bed19fE1c2dD4);
+
     using CurrencyLibrary for Currency;
     Currency public currency0;
     Currency public currency1;
@@ -133,8 +133,7 @@ contract DeployScript is Script {
 
         // multicall to atomically create pool & add liquidity
         vm.broadcast();
-        //posm.multicall(params);
-        posm.initializePool(pool, startingPrice);
+        posm.multicall(params);
     }
 
     /// @dev helper function for encoding mint liquidity operation
@@ -157,7 +156,6 @@ contract DeployScript is Script {
         return (actions, params);
     }
 
-    
     function tokenApprovals() public {
         ERC20 token0 = ERC20(WETH);
         ERC20 token1 = ERC20(BOLD);

@@ -25,29 +25,29 @@ const Home: NextPage = () => {
   return (
     <>
       <div>
-        <div className="hero min-h-screen bg-base-100">
+        <div className="hero min-h-screen bg-gradient-to-b from-neutral-900 via-neutral-800 to-neutral-900">
           <div className="hero-content flex-col justify-center items-center">
-            <div className="stats shadow mb-8 bg-base-100">
+            <div className="stats shadow mb-8 bg-neutral-500">
               <div className="stat place-items-center">
-                <div className="stat-title">Liquidation</div>
-                <div className="stat-value">31K</div>
-                <div className="stat-desc">From January 1st to February 1st</div>
+                <div className="stat-title text-white">Liquidation Price</div>
+                <div className="stat-value text-warning">2K</div>
+                <div className="stat-desc text-warning">Last increased February 1st</div>
               </div>
 
               <div className="stat place-items-center">
-                <div className="stat-title">Users</div>
-                <div className="stat-value text-secondary">4,200</div>
-                <div className="stat-desc text-secondary">↗︎ 40 (2%)</div>
+                <div className="stat-title text-white">PnL 24h</div>
+                <div className="stat-value text-success">4,200$</div>
+                <div className="stat-desc text-success">↗︎ 40$ (2%)</div>
               </div>
 
               <div className="stat place-items-center">
-                <div className="stat-title">New Registers</div>
-                <div className="stat-value">1,200</div>
-                <div className="stat-desc">↘︎ 90 (14%)</div>
+                <div className="stat-title text-white">TVL</div>
+                <div className="stat-value text-white">1,200k Eth</div>
+                <div className="stat-desc text-red-500">↘︎ 90 Eth (14%)</div>
               </div>
             </div>
 
-            <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+            <div className="card bg-neutral-300 w-full max-w-sm shrink-0 shadow-2xl">
               <form className="card-body">
                 <div className="form-control">
                   <div className="flex items-center gap-2">

@@ -22,7 +22,7 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Hook} from "../src/Hook.sol";
 import {HookMiner} from "v4-template/test/utils/HookMiner.sol";
 
-contract DeployScript is Script {
+contract DeployUnichainScript is Script {
 
     //BOLD///////////////////////////////////////////////////////////////////////////////////////
     address public constant BOLD = 0x66bB78C022A0c759Ed5a679cfC840F0269f17B8f;
