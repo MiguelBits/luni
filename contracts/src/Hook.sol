@@ -136,7 +136,8 @@ contract Hook is BaseHook, ILuniHook {
             //console.log("SWAP TOKEN0 FOR TOKEN1");
             
         }
-
+        
+        //_calculateUniswapDeltas(delta, key, _data.caller);
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 

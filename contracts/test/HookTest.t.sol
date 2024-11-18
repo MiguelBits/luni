@@ -108,8 +108,8 @@ contract HookTest is Helpers {
     }
 
     function tokenApprovals() public {
-        ERC20 token0 = ERC20(WETH);
-        ERC20 token1 = ERC20(BOLD);
+        ERC20 token1  = ERC20(WETH);
+        ERC20 token0 = ERC20(BOLD);
         if (!currency0.isAddressZero()) {
             token0.approve(address(PERMIT2), type(uint256).max);
             PERMIT2.approve(address(token0), address(posm), type(uint160).max, type(uint48).max);
@@ -139,11 +139,11 @@ contract HookTest is Helpers {
         //console2.log("liquidity: %s", liquidity);
         //console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
 
-        deal(WETH, USER, token0Amount);
+        deal(WETH, USER, token1Amount);
 
         //console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
 
-        deal(BOLD, USER, token1Amount);
+        deal(BOLD, USER, token0Amount);
 
         //console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
 

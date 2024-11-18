@@ -77,8 +77,8 @@ contract Helpers is HintHelpers, Test {
     uint160 startingPrice = 1771845812700853221; // floor(sqrt(1) * 2^96)
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 10e18;
-    uint256 public token1Amount = 10e18*2000;
+    uint256 public token0Amount = 10e18*2000;
+    uint256 public token1Amount = 10e18;
 
     // range of the position
     int24 tickLower = -600; // must be a multiple of tickSpacing
@@ -141,6 +141,7 @@ contract Helpers is HintHelpers, Test {
     ///@param upfrontFee is the upfront fee to be paid for the swap
     function _swap(uint256 collateralAmount, uint256 borrowAmount, bool zeroForOne, uint256 upfrontFee) internal {
         console.log("SWAPPING");
+
         //to calculate amountSpecified, we need to know the price of the pool
         //we can get the price of the pool by getting the sqrtPriceX96 from the pool
         //and then converting it to the amount of token0 or token1 that we need to swap
@@ -149,6 +150,7 @@ contract Helpers is HintHelpers, Test {
         //amount specified will be the borrowAmount in terms of price of token1
         int256 amountSpecified = int256(getQuoteExactInputSingle(borrowAmount, true));
         console.log("amountSpecified: %s", amountSpecified);
+        
         // slippage tolerance to allow for unlimited price impact
         uint160 MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
         uint160 MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;

@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
 //BOLD
 import {BorrowerOperations} from "liquity-bold/src/BorrowerOperations.sol";
 import {ERC20} from "liquity-bold/lib/Solady/src/tokens/ERC20.sol";
@@ -25,8 +26,8 @@ import {HookMiner} from "v4-template/test/utils/HookMiner.sol";
 contract DeploySepoliaScript is Script {
 
     //BOLD///////////////////////////////////////////////////////////////////////////////////////
-    address public constant BOLD = 0x3EF4A137b3470f0B8fFe6391eDb72d78a3Ac1E63;
-    address public constant WETH = 0xbCDdC15adbe087A75526C0b7273Fcdd27bE9dD18;
+    address public BOLD = 0x3EF4A137b3470f0B8fFe6391eDb72d78a3Ac1E63;
+    address public WETH = 0xbCDdC15adbe087A75526C0b7273Fcdd27bE9dD18;
     
     address public constant USER = 0x5C89102bcBf5Fa85f9aec152b0a3Ef89634DEcB5;
     uint256 public constant AMOUNT_COLLATERAL = 1000000000000000000000000;
@@ -57,11 +58,11 @@ contract DeploySepoliaScript is Script {
     int24 tickSpacing = 60;
 
     // starting price of the pool, in sqrtPriceX96
-    uint160 startingPrice = 79228162514264337593543950336; // floor(sqrt(1) * 2^96)
+    uint160 startingPrice = 1771845812700853221; // floor(sqrt(1) * 2^96)
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 10e18;
-    uint256 public token1Amount = 10000e18;
+    uint256 public token0Amount = 0;
+    uint256 public token1Amount = 10e18;
 
     // range of the position
     int24 tickLower = -600; // must be a multiple of tickSpacing
@@ -73,7 +74,14 @@ contract DeploySepoliaScript is Script {
 
     function run() public returns(Hook hookContract) {
         
+        //deploy mock weth TODO:remove
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        WETH = address(weth);
+
         (currency0, currency1) = SortTokens.sort(MockERC20(BOLD), MockERC20(WETH));
+        //ERC20(Currency.unwrap(key.currency1))
+        console.log("currency0: %s", Currency.unwrap(currency0));
+        console.log("currency1: %s", Currency.unwrap(currency1));
 
         // hook contracts must have specific flags encoded in the address
         uint160 flags = uint160(
