@@ -1,6 +1,8 @@
 ![image](https://github.com/user-attachments/assets/cbfd5ba2-0983-45c5-bf02-f4a3a53ee25f)
 
 
+'''forge t --match-test test_swapHook -vv --rpc-url 127.0.0.1:8545'''
+
 By implementing BOLD new CDP model, if the developer has a license and changes some parts of the code, it is possible to get 'leverage' for any token.
 However the standard BOLD protocol in LiquityV2 only supports ETH derivations, only Ethereum is used in this project.
 
