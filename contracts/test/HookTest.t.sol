@@ -3,16 +3,24 @@ pragma solidity ^0.8.20;
 
 
 import "./Helpers.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 contract HookTest is Helpers {
+    using PoolIdLibrary for PoolKey;
+    using TickMath for uint160;
+
+    uint256 public tokenId;
+    PoolId poolId;
 
     function setUp() public {
         //vm.createSelectFork("https://eth-sepolia.g.alchemy.com/v2/_oXBG8AigQRseN1k3i4srkLBxFeP6EJN");
-        vm.deal(USER, 1000 ether);
 
         currency1 = Currency.wrap(WETH);
         currency0 = Currency.wrap(BOLD);
         (currency0, currency1) = SortTokens.sort(MockERC20(WETH), MockERC20(BOLD));
+        console.log("currency0: %s", Currency.unwrap(currency0));
+        console.log("currency1: %s", Currency.unwrap(currency1));
 
         // Deploy the hook to an address with the correct flags
         address flags = address(
@@ -25,7 +33,7 @@ contract HookTest is Helpers {
         deployCodeTo("Hook.sol:Hook", constructorArgs, flags);
 
         hookContract = Hook(flags);
-        pool = PoolKey({
+        poolKey = PoolKey({
             currency0: currency0,
             currency1: currency1,
             fee: lpFee,
@@ -33,7 +41,89 @@ contract HookTest is Helpers {
             hooks: hookContract
         }); 
         console2.log("pool hook address: %s", address(hookContract));
-        //add pool
+        
+        //create initialize pool params
+        bytes[] memory multicallParams = new bytes[](2);
+        multicallParams[0] = abi.encodeWithSelector(
+            posm.initializePool.selector,
+            poolKey,
+            startingPrice
+        );
+        
+        bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+
+        //mint liquidity position params
+        uint256 amount0Max = token0Amount + 1 wei;
+        uint256 amount1Max = token1Amount + 1 wei;
+        bytes memory hookData = new bytes(0);
+
+        int24 tick = startingPrice.getTickAtSqrtPrice();
+        console.log("tick: %d", tick);
+        tickLower = (tick - 1000) / tickSpacing * tickSpacing; // Round down to nearest valid tick
+        tickUpper = (tick + 1000) / tickSpacing * tickSpacing; // Round down to nearest valid tick
+
+        // Converts token amounts to liquidity units
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            startingPrice,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            token0Amount,
+            token1Amount
+        );
+        console.log("liquidity: %d", liquidity);
+
+        bytes[] memory mintParams = new bytes[](2);
+        mintParams[0] = abi.encode(poolKey, tickLower, tickUpper, liquidity, amount0Max, amount1Max, USER, hookData);
+        mintParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+
+        //mint liquidity position multicall params
+        uint256 deadline = block.timestamp + 60;
+        multicallParams[1] = abi.encodeWithSelector(
+            posm.modifyLiquidities.selector, abi.encode(actions, mintParams), deadline
+        );
+
+        //give USER tokens to mint liquidity position
+        deal(WETH, USER, token1Amount);
+        deal(BOLD, USER, token0Amount);
+        console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+        console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+
+        vm.startPrank(USER);
+
+        // approve PERMIT2 as a spender
+        IERC20(WETH).approve(address(PERMIT2), type(uint256).max);
+        IERC20(BOLD).approve(address(PERMIT2), type(uint256).max);
+        // approve `PositionManager` as a spender
+        IAllowanceTransfer(address(PERMIT2)).approve(WETH, address(posm), type(uint160).max, type(uint48).max);
+        IAllowanceTransfer(address(PERMIT2)).approve(BOLD, address(posm), type(uint160).max, type(uint48).max);
+
+        posm.multicall(multicallParams);
+
+        vm.stopPrank();
+
+        console.log("liquidity added");
+        (, tick,,) = state.getSlot0(poolKey.toId());
+        console.log("tick: %d", tick);
+    }
+    /*
+    function test_getCurrentTick() public {
+        uint160 startingPrice = 79228162514264337593543950336 * uint160(sqrt(2000)); // your price
+        int24 tick = startingPrice.getTickAtSqrtPrice();
+        console.log("Current Tick for 1/2000 price:", tick);
+    }*/
+
+    function test_setup() public {
+        console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+        console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+
+        uint128 liquidity = state.getLiquidity(poolKey.toId());
+        console.log("liquidity: %d", liquidity);
+    
+        bool zeroForOne = false;
+        uint128 inputAmount = 1e18;
+
+        uint256 amountOut = getQuoteExactInputSingle(inputAmount, zeroForOne);
+        console.log("amountOut: %s", amountOut);
     }
 
     function test_openTrove() public {
@@ -74,7 +164,7 @@ contract HookTest is Helpers {
             0,
             0,
             50000000000000000,
-            115792089237316195423570985008687907853269984665640564039457584007913129639935,
+            type(uint256).max,
             address(2),
             address(2),
             address(2)
@@ -87,102 +177,9 @@ contract HookTest is Helpers {
         //console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
     }
 
-    /// @dev helper function for encoding mint liquidity operation
-    /// @dev does NOT encode SWEEP, developers should take care when minting liquidity on an ETH pair
-    function _mintLiquidityParams(
-        PoolKey memory poolKey,
-        int24 _tickLower,
-        int24 _tickUpper,
-        uint256 liquidity,
-        uint256 amount0Max,
-        uint256 amount1Max,
-        address recipient,
-        bytes memory hookData
-    ) internal pure returns (bytes memory, bytes[] memory) {
-        bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
-
-        bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(poolKey, _tickLower, _tickUpper, liquidity, amount0Max, amount1Max, recipient, hookData);
-        params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
-        return (actions, params);
-    }
-
-    function tokenApprovals() public {
-        ERC20 token1  = ERC20(WETH);
-        ERC20 token0 = ERC20(BOLD);
-        if (!currency0.isAddressZero()) {
-            token0.approve(address(PERMIT2), type(uint256).max);
-            PERMIT2.approve(address(token0), address(posm), type(uint160).max, type(uint48).max);
-        }
-        if (!currency1.isAddressZero()) {
-            token1.approve(address(PERMIT2), type(uint256).max);
-            PERMIT2.approve(address(token1), address(posm), type(uint160).max, type(uint48).max);
-        }
-    }
-
-    function test_addLiquidity() public {
-        bytes memory hookData = new bytes(0);
-
-        // Converts token amounts to liquidity units
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            startingPrice,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            token0Amount,
-            token1Amount
-        );
-
-        // slippage limits
-        uint256 amount0Max = token0Amount + 1 wei;
-        uint256 amount1Max = token1Amount + 1 wei;
-        
-        //console2.log("liquidity: %s", liquidity);
-        //console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
-
-        deal(WETH, USER, token1Amount);
-
-        //console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
-
-        deal(BOLD, USER, token0Amount);
-
-        //console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
-
-        (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(pool, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
-        
-        // multicall parameters
-        bytes[] memory params = new bytes[](2);
-
-        // initialize pool
-        params[0] = abi.encodeWithSelector(posm.initializePool.selector, pool, startingPrice, hookData);
-
-        //mint liquidity
-        params[1] = abi.encodeWithSelector(
-            posm.modifyLiquidities.selector, abi.encode(actions, mintParams), block.timestamp + 60
-        );
-
-        // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
-
-        // multicall
-        vm.startPrank(USER);
-
-        tokenApprovals();
-
-        // multicall to atomically create pool & add liquidity
-        posm.multicall{value: valueToPass}(params);
-
-        vm.stopPrank();
-
-        //log liquidity
-
-    }
-
     ///@dev end with bold in wallet
     ///@notice swap weth for bold
     function test_swapHook_wethForBold() public {
-        //add liquidity
-        test_addLiquidity();
 
         //log balances of user
         console.log("B4 USER SWAP bold:", ERC20(BOLD).balanceOf(USER));

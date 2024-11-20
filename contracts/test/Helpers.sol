@@ -18,8 +18,11 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {SortTokens, MockERC20} from "v4-core/test/utils/SortTokens.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
+import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {IQuoter} from "v4-periphery/src/interfaces/IQuoter.sol";
+import {StateView} from "v4-periphery/src/lens/StateView.sol";
 //HOOK
 import {Hook} from "../src/Hook.sol";
 import {ILuniHook} from "../src/interfaces/ILuniHook.sol";
@@ -44,47 +47,32 @@ contract Helpers is HintHelpers, Test {
     IAllowanceTransfer PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
     // PoolSwapTest Contract address, default to the anvil address
     PoolSwapTest swapRouter = PoolSwapTest(0xe49d2815C231826caB58017e214Bed19fE1c2dD4);
+    PoolModifyLiquidityTest lpRouter = PoolModifyLiquidityTest(0x496CD7097f0BDd32774dA3D2F1Ef0adF430b7e81);
     IQuoter QUOTER = IQuoter(0xCd8716395D55aD17496448a4b2C42557001e9743);
+    StateView state = StateView(0x823d45b1329bcF3b369F08F36ba2690Ff8e058C3);
     using CurrencyLibrary for Currency;
     Currency public currency0;
     Currency public currency1;
-    PoolKey pool;
+    PoolKey poolKey;
     /////////////////////////////////////
     // --- Parameters to Configure --- //
     /////////////////////////////////////
 
     // --- pool configuration --- //
+    // starting price of the pool, in sqrtPriceX96
+    uint160 startingPrice = 1771845812700853221;
+    
+    // --- liquidity position configuration --- //
+    uint256 public token0Amount = 2000e18;  // BOLD amount
+    uint256 public token1Amount = 1e18;     // WETH amount
+
+    // range of the position
+    int24 tickLower = -600;
+    int24 tickUpper = 600;
     // fees paid by swappers that accrue to liquidity providers
     uint24 lpFee = 3000; // 0.30%
     int24 tickSpacing = 60;
-
-    ///@dev
-    /* 
-    // If BOLD is token0 and WETH is token1:
-    // price = 1/2000 (because we want token1/token0)
-    // sqrt(1/2000) * 2^96 = 1771845812700853221
-
-    // If WETH is token0 and BOLD is token1:
-    // price = 2000 (because we want token1/token0)
-    // sqrt(2000) * 2^96 = 79228162514264337593543950336
-    
-    uint160 startingPrice = BOLD < WETH ? 
-        1771845812700853221 :      // If BOLD is token0: sqrt(1/2000) * 2^96
-        79228162514264337593543950336;  // If WETH is token0: sqrt(2000) * 2^96
-    */
-
-    // starting price of the pool, in sqrtPriceX96
-    uint160 startingPrice = 1771845812700853221; // floor(sqrt(1) * 2^96)
-
-    // --- liquidity position configuration --- //
-    uint256 public token0Amount = 10e18*2000;
-    uint256 public token1Amount = 10e18;
-
-    // range of the position
-    int24 tickLower = -600; // must be a multiple of tickSpacing
-    int24 tickUpper = 600;
     /////////////////////////////////////
-
 
     //HOOK/////////////////////////////////////////////////////////////////////////////////////
     Hook public hookContract;
@@ -117,17 +105,12 @@ contract Helpers is HintHelpers, Test {
         return _predictAdjustInterestRateUpfrontFee(activePool, trove, _newInterestRate);
     }
 
-    function getQuoteExactInputSingle(uint256 borrowAmount, bool zeroForOne) public returns (uint256 quotedAmount) {
+    function getQuoteExactInputSingle(uint128 borrowAmount, bool zeroForOne) public returns (uint256 quotedAmount) {
         IQuoter.QuoteExactSingleParams memory params = IQuoter.QuoteExactSingleParams({
-            poolKey: pool,
+            poolKey: poolKey,
             zeroForOne: zeroForOne,
-            exactAmount: uint128(borrowAmount),
-            hookData: abi.encode(ILuniHook.LuniHookData({
-                collateralAmount: 0,
-                debtAmount: 0,
-                upfrontFee: 0,
-                caller: USER
-            }))
+            exactAmount: borrowAmount,
+            hookData: new bytes(0)
         });
         
         (uint256 amountOut, /*uint256 gasEstimate*/) = QUOTER.quoteExactInputSingle(params);
@@ -148,7 +131,7 @@ contract Helpers is HintHelpers, Test {
         //so we are swapping borrowAmount for collateral to get amountSpecified
 
         //amount specified will be the borrowAmount in terms of price of token1
-        int256 amountSpecified = int256(getQuoteExactInputSingle(borrowAmount, true));
+        int256 amountSpecified = int256(getQuoteExactInputSingle(uint128(borrowAmount), true));
         console.log("amountSpecified: %s", amountSpecified);
         
         // slippage tolerance to allow for unlimited price impact
@@ -189,9 +172,20 @@ contract Helpers is HintHelpers, Test {
         token0.approve(address(hookContract), type(uint256).max);
         token1.approve(address(hookContract), type(uint256).max);
 
-        swapRouter.swap(pool, params, testSettings, hookData);
+        swapRouter.swap(poolKey, params, testSettings, hookData);
         vm.stopPrank();
 
+    }
+
+    function sqrt(uint256 x) internal pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        uint256 y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+        return y;
     }
 
 }
