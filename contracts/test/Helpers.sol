@@ -14,7 +14,6 @@ import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {Actions} from "v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {SortTokens, MockERC20} from "v4-core/test/utils/SortTokens.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
@@ -22,12 +21,17 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {IQuoter} from "v4-periphery/src/interfaces/IQuoter.sol";
-import {StateView} from "v4-periphery/src/lens/StateView.sol";
+import {StateView, IPoolManager} from "v4-periphery/src/lens/StateView.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+
 //HOOK
 import {Hook} from "../src/Hook.sol";
 import {ILuniHook} from "../src/interfaces/ILuniHook.sol";
 
 contract Helpers is HintHelpers, Test {
+
+    using CurrencyLibrary for Currency;
+    using StateLibrary for IPoolManager;
 
     //BOLD///////////////////////////////////////////////////////////////////////////////////////
     address public constant BOLD = 0x3EF4A137b3470f0B8fFe6391eDb72d78a3Ac1E63;
@@ -60,11 +64,11 @@ contract Helpers is HintHelpers, Test {
 
     // --- pool configuration --- //
     // starting price of the pool, in sqrtPriceX96
-    uint160 startingPrice = 1771845812700853221;
+    uint160 startingPrice = 1517882343751509231 ;  // sqrt(2000) * 2^96
     
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 2000e18;  // BOLD amount
-    uint256 public token1Amount = 1e18;     // WETH amount
+    uint256 public token0Amount = 2000e18;  // BOLD amount (token0)
+    uint256 public token1Amount = 1e18;     // WETH amount (token1)
 
     // range of the position
     int24 tickLower = -600;
@@ -73,6 +77,7 @@ contract Helpers is HintHelpers, Test {
     uint24 lpFee = 3000; // 0.30%
     int24 tickSpacing = 60;
     /////////////////////////////////////
+
 
     //HOOK/////////////////////////////////////////////////////////////////////////////////////
     Hook public hookContract;
