@@ -67,10 +67,11 @@ contract Hook is BaseHook, ILuniHook {
         //console.log("address currency1: %s", Currency.unwrap(key.currency1));
 
         LuniHookData memory _data = abi.decode(hookData, (LuniHookData));
-        //console.log("debtAmount: %s", _data.debtAmount);
-        //console.log("caller: %s", _data.caller);
+        console.log("debtAmount: %s", _data.debtAmount);
+        console.log("caller: %s", _data.caller);
 
         if(_data.debtAmount == 0) {
+            //console.log("debtAmount is 0, returning ZERO_DELTA");
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
@@ -151,6 +152,7 @@ contract Hook is BaseHook, ILuniHook {
         LuniHookData memory _data = abi.decode(hookData, (LuniHookData));
 
         if(_data.debtAmount == 0) {
+            //console.log("debtAmount is 0, returning ZERO_DELTA");
             return (BaseHook.afterSwap.selector, 0);
         }
         

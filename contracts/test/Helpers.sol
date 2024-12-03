@@ -64,15 +64,15 @@ contract Helpers is HintHelpers, Test {
 
     // --- pool configuration --- //
     // starting price of the pool, in sqrtPriceX96
-    uint160 startingPrice = 1517882343751509231 ;  // sqrt(2000) * 2^96
+    uint160 startingPrice = 79228162514264337593543950336;
     
     // --- liquidity position configuration --- //
     uint256 public token0Amount = 2000e18;  // BOLD amount (token0)
     uint256 public token1Amount = 1e18;     // WETH amount (token1)
 
     // range of the position
-    int24 tickLower = -600;
-    int24 tickUpper = 600;
+    int24 tickLower = -600; //            tickLower: -887220,
+    int24 tickUpper = 600; //            tickUpper: 887220,
     // fees paid by swappers that accrue to liquidity providers
     uint24 lpFee = 3000; // 0.30%
     int24 tickSpacing = 60;
@@ -115,10 +115,16 @@ contract Helpers is HintHelpers, Test {
             poolKey: poolKey,
             zeroForOne: zeroForOne,
             exactAmount: borrowAmount,
-            hookData: new bytes(0)
+            hookData: abi.encode(ILuniHook.LuniHookData({
+                collateralAmount: 0,
+                debtAmount: 0,
+                upfrontFee: 0,
+                caller: USER
+            }))
         });
         
         (uint256 amountOut, /*uint256 gasEstimate*/) = QUOTER.quoteExactInputSingle(params);
+        //console.log("amountOut: %d", amountOut);
         
         return amountOut;
     }

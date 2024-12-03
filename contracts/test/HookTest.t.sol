@@ -57,14 +57,20 @@ contract HookTest is Helpers {
         uint256 amount1Max = token1Amount + 1 wei;
         bytes memory hookData = new bytes(0);
 
-        int24 tick = startingPrice.getTickAtSqrtPrice();
+        // Converts token amounts to liquidity units
+        (uint160 sqrtPriceX96, int24 tick,,) = state.getSlot0(poolKey.toId());
+        console.log("sqrtPriceX96: %d", sqrtPriceX96);
         console.log("tick: %d", tick);
-        tickLower = (tick - 600) / tickSpacing * tickSpacing;
-        tickUpper = (tick + 600) / tickSpacing * tickSpacing;
-        console.log("sqrtPriceX96 tickLower: %d", TickMath.getSqrtPriceAtTick(tickLower));
-        console.log("sqrtPriceX96 tick:      %d", TickMath.getSqrtPriceAtTick(tick));
-        console.log("sqrtPriceX96 tickUpper: %d", TickMath.getSqrtPriceAtTick(tickUpper));
+        //uint160 sqrtPriceX96_1 = sqrtPriceX96;
+        //console.log("sqrtPriceX96_1: %d", sqrtPriceX96_1);
+        //uint160 sqrtPriceX96_2 = sqrtPriceX96 + uint160(10);
+        //console.log("sqrtPriceX96_2: %d", sqrtPriceX96_2);
 
+        //convert to the closest multiple of tickSpacing with 600 distance
+        tickLower = tick - (tick % tickSpacing) - 600;
+        tickUpper = tick - (tick % tickSpacing) + 600;
+        console.log("tickLower: %d", tickLower);
+        console.log("tickUpper: %d", tickUpper);
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
@@ -74,6 +80,12 @@ contract HookTest is Helpers {
             token1Amount
         );
         console.log("liquidity: %d", liquidity);
+        (uint256 liqAmount0, uint256 liqAmount1) = LiquidityAmounts.getAmountsForLiquidity(startingPrice, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity);
+        console.log("liqAmount0: %d", liqAmount0);
+        console.log("liqAmount1: %d", liqAmount1);
+        //console.log("amount0Liq0:%d", LiquidityAmounts.getLiquidityForAmount0(TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), token0Amount));
+        //console.log("amount1Liq1:%d", LiquidityAmounts.getLiquidityForAmount1(TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), token1Amount));
+        //console.log("amount2Liq2:%d", LiquidityAmounts.getLiquidityForAmount0(TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), token0Amount) + LiquidityAmounts.getLiquidityForAmount1(TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), token1Amount));
 
         bytes[] memory mintParams = new bytes[](2);
         mintParams[0] = abi.encode(poolKey, tickLower, tickUpper, liquidity, amount0Max, amount1Max, USER, hookData);
@@ -91,6 +103,10 @@ contract HookTest is Helpers {
         console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
 
+        //get next tokenId
+        tokenId = posm.nextTokenId();
+        console.log("tokenId: %d", tokenId);
+
         vm.startPrank(USER);
 
         // approve PERMIT2 as a spender
@@ -105,10 +121,10 @@ contract HookTest is Helpers {
         vm.stopPrank();
 
         console.log("liquidity added");
-        (, tick,,) = state.getSlot0(poolKey.toId());
-        console.log("tick: %d", tick);
+
         console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+        
         console.log("\n");
     }
     /*
@@ -120,12 +136,19 @@ contract HookTest is Helpers {
 
     function test_addLiq() public {
         
+        vm.prank(USER);
+        ERC20(WETH).transfer(address(1), 1000000000000000000);
         console.log("one more time");
 
-        (uint160 sqrtPriceX96,,,) = state.getSlot0(poolKey.toId());
+        console.log("B4 USER ADD LIQ");
+        console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+        console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
 
+        (uint160 sqrtPriceX96, int24 tick,,) = state.getSlot0(poolKey.toId());
+        console.log("sqrtPriceX96: %d", sqrtPriceX96);
+        console.log("tick: %d", tick);
         // Converts token amounts to liquidity units
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+        uint256 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
@@ -133,46 +156,50 @@ contract HookTest is Helpers {
             token1Amount
         );
 
-        // slippage limits
-        uint256 amount0Max = token0Amount + 1 wei;
-        uint256 amount1Max = token1Amount + 1 wei;
-        deal(BOLD, USER, amount0Max);
-
-        console.log("B4 USER ADD LIQ");
-        console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
-        console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+        IPoolManager.ModifyLiquidityParams memory modifyLiquidityParams = IPoolManager.ModifyLiquidityParams({
+            tickLower: -600,
+            tickUpper: 600,
+            liquidityDelta: int256(liquidity),
+            salt: bytes32(0)
+        });
 
         bytes memory hookData = new bytes(0);
 
-        bytes[] memory mintParams = new bytes[](2);
-        mintParams[0] = abi.encode(poolKey, tickLower, tickUpper, liquidity, amount0Max, amount1Max, msg.sender, hookData);
-        mintParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+        deal(WETH, USER, 1e18);
+        deal(BOLD, USER, 2000e18);
         
-        // Create action bytes
-        bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+        ERC20 token0 = ERC20(WETH);
+        ERC20 token1 = ERC20(BOLD);
 
         vm.startPrank(USER);
-        posm.modifyLiquidities(
-            abi.encode(actions, mintParams),
-            block.timestamp + 60
-        );
+
+        token0.approve(address(lpRouter), type(uint256).max);
+        token1.approve(address(lpRouter), type(uint256).max);
+
+        lpRouter.modifyLiquidity(poolKey, modifyLiquidityParams, hookData);
+        
         vm.stopPrank();
 
         console.log("AF USER ADD LIQ");
         console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
         console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
+        uint128 liquidityState = state.getLiquidity(poolKey.toId());
+        console.log("liquidityState: %d", liquidityState);
+
         console.log("\n");
     }
 
-    function test_setup() public {
+    function test_setup() public view {
+        (, int24 tick,,) = state.getSlot0(poolKey.toId());
+        console.log("tick: %d", tick);
         console.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         console.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
 
         uint128 liquidity = state.getLiquidity(poolKey.toId());
         console.log("liquidity: %d", liquidity);
     
-        bool zeroForOne = false;
-        uint128 inputAmount = 1e18;
+        //bool zeroForOne = false;
+        //uint128 inputAmount = 1e18;
 
         //uint256 amountOut = getQuoteExactInputSingle(inputAmount, zeroForOne);
         //console.log("amountOut: %s", amountOut);
@@ -227,6 +254,11 @@ contract HookTest is Helpers {
 
         //console2.log("WETH balance of USER: %s", ERC20(WETH).balanceOf(USER));
         //console2.log("BOLD balance of USER: %s", ERC20(BOLD).balanceOf(USER));
+    }
+
+    function test_quote() public {
+        uint256 amountOut = getQuoteExactInputSingle(1e18, true);
+        console.log("amountOut: %d", amountOut);
     }
 
     ///@dev end with bold in wallet
